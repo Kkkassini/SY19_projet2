@@ -1,0 +1,133 @@
+---
+title: "SY19 A19 TP7 Rapport"
+author: "YUHUI WANG, XINGJIAN ZHOU et AGHILES HAMACHE"
+date: "12 Janvier,2020"
+
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_notebook: default
+---
+
+# 1. Partie Classification
+## 1.1 Introduction
+ &emsp;Dans ce problème de classification, nous devons classifier les 3 différents types d’objets astronomiques à partir de 17 variables. Pour cette partie nous avons fait les analyses ci-dessous :  
+- PCA  
+- K plus proche voisins  
+- Analyse discriminante quadratique (QDA)
+- Logistic Regression  
+- Classification naive bayésienne  
+- Arbre de décision avec application du bagging et des forêts aléatoires  
+- KSVM  
+- Neural Network simple avec une seule couche cachée
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+load("astro_rapport.RData")
+```
+
+## 1.2 Préparation, traitement des données
+ &emsp;Avant commencer, nous faisons le traitement des données pour que notre algorithmes puissent fonctionner mieux. Et pour les algorithmes basés sur des arbres, nous prenons les données d'orgine, en raison qu'ils n'ont pas besoin de traitement des données.  
+ 
+ &emsp;Tout d'abord, nous fasions l'analyse de données. Sachant que la colonne *rerun* et la colonne *objid* sont identiques pour tous les données, nous supprimons ces deux colonnes.  
+ 
+ &emsp;Deuxièmement, vue que la variable *specobjid* est trop grande au nivaeau de 10^18^, et *redshift* est trop petite au niveau de 10^-5^. Dans ce condition là, pour équilibrer l'influence des variables différentes, nous utilisons la fonction **scale()** pour normaliser tous les variables.  
+
+ &emsp;Troisièmement, nous analysons la dépendence entre les variables en calculant leur covariance. La fonction **corr.test()** de package `psych` est utilisée pour ganer une matrice de corrélation ainsi qu'une matrice des p-values. Et la fonction **corrplot()** du package `corrplot` sert à visualiser graphiquement la matrice de corrélation.  
+ 
+```{r echo=FALSE, fig.height=4, fig.width=7.2, message=FALSE, warning=FALSE, paged.print=TRUE}
+correlation <- cor(as.numeric(astro.scale$class), astro.scale[,-16], use="pairwise.complete.obs") 
+library(corrplot)
+cor1 <- cor(astro.scale[,-16])
+corrplot(cor1,method="circle",type = "upper", title = "Visualisation de la matrice de corrélation",mar = c(1,1,1,1),roundint=FALSE)
+library('psych')
+cor2 <- corr.test(astro[,-16], use = "complete", method = "pearson", adjust = "none")
+#cor2
+```
+
+ &emsp;D'après la matrice des p-values et la figure des valeurs corrélation, nous pouvons voir clairement que deux groupes des valeurs *u,g,r,i,z* et *plate,mjd,specobjid* ont une relation linéaire entre eux. Donc nous pouvons prévoir que les méthodes pour réduire la dimension des features seront utiles pour les algorithms qui font hypothèses que les features n'ont pas de relation linéaire. Ainsi nous choissisons de faire l'analyse en composant principal pour l'extraction des features, en utilisant la fonction **prcomp()**.
+```{r echo=FALSE, fig.height=3, fig.width=7.2,fig.align='center',message=FALSE, warning=FALSE}
+screeplot(pca3,type='line',main='ScreePlot',lwd=2, npcs = 15)
+```
+ &emsp;Nous pouvons faire la conclusion de la figure de **ScreePlot** que nous pouvons choisir les 10 premiers  composants principals, et la proportion cumulative est au 0.99521.  
+
+ &emsp;Pour pouvoir comparer plus facilement tous les algorithmes, nous utilisons la validation croisée de K-fold. Et après,nous faisons l'intervalle de confiance approximative au nivau 95% avec l'erreurs obtenues en utilisant la fonction **t.test()**.  
+
+## 1.3 Sélection de modèle
+### 1.3.1 Logistic Regression
+  &emsp;D'abord, nous faisons la méthode logistic regression, qui est un algorithme très simple pour le problème de classification, en utilisant la fonction **multinom()** de package `nnet` pour la condition avec 3 types.
+  
+```{r echo=FALSE, comment="##"}
+cat("Erreur au moyen de logistic regression =", mean(error_lr),"    IC = [", ic.lr, "]");
+```
+
+### 1.3.2 QDA
+  &emsp;Puis nous utilisons le modèle QDA par la fonction **qda()** dans le package `MASS`. On trouve que logistic regression fonctionne mieux que QDA.
+  
+```{r echo=FALSE, comment="##"}
+cat("Erreur au moyen de QDA =", mean(error_qda),"    IC = [", ic.qda, "]");
+```
+### 1.3.3 KNN
+  &emsp;Pour la méthode de KNN, nous retiendrons la classe la plus représentée parmi les k sorties associées aux k entrées les proches de la nouvelle entrée x. Premièrement, nous appliquons la méthode de la validation croisée pour obtenir un meilleur k. Par la méthode CV, le taux d’erreur reste presque invariant pour k entre 1 et 500. Donc, on choisissons alors K=100.
+  
+```{r echo=FALSE, comment="##"}
+cat("Erreur au moyen de knn =", mean(error_knn),"    IC = [", ic.knn, "]");
+```
+
+### 1.3.4 Naive Bayes
+  &emsp;Pour cette méthode, nous faisons la modélisation en utilisant la fonction **naiveBayes()** dans le package `E1071`.
+  
+```{r echo=FALSE, comment="##"}
+cat("Erreur au moyen de naive bayes =", mean(error_nb),"    IC = [", ic.nb, "]");
+```
+
+### 1.3.5 Decision Tree, Bagging et Random Forest
+  &emsp;Premièrement, nous construissons un arbre de décision sur les données sans traitement, et nous viualiser cette arbre.
+```{r echo=FALSE, fig.height=2.5, fig.width=7.2, message=FALSE, warning=FALSE, comment="##"}
+cat("Erreur au moyen de decision tree =", mean(error_dtree));
+cat("    IC = [", ic.dtree, "]\n");
+library(rpart.plot);
+#plot(dtree.mod$size,dtree.mod$dev/ntst,type="b")
+rpart.plot(dtree.mod, box.palette="RdBu", shadow.col="gray", fallen.leaves=FALSE);
+# plot(dtree.mod,margin = 0.05);
+# text(dtree.mod,pretty=0,cex=0.8);
+#plotcp(dtree.mod);
+# cat("tableau de cp : \n");
+# print(dtree.mod$cptable)
+```
+  &emsp;Vue que notre modèle est déjà assez simple, nous n'avons pas besoin de appliquer à l’arbre précédent la procédure d’élagage. De plus le tableau de cp a montré que notre modèle est constitué avec une valeur de cp assez petite d'où cp = 0.001.  
+  &emsp;Alors nous appliquons le bagging et le random forest en utilisant la fonction **randomForest()** du package `randomForest` d'où le paramètre *mtry = 15* signfie que tous les features sont prend en compte pour le cas bagging et *mtry = nombre de features/3* pour le cas random forest.
+```{r echo=FALSE, message=FALSE, warning=FALSE, comment="##"}
+cat("Erreur au moyen de bagging =", mean(error_bag),"    IC = [", ic.bag, "]");
+cat("Erreur au moyen de Random Forest =", mean(error_rf),"    IC = [", ic.rf, "]");
+```
+
+
+### 1.3.6 SVM
+  &emsp;Premièrement,nous implémintons la méthode SVM avec **ksvm()** dans le package `kernlab`. Nous utilisons une autre cross-validation pour trouver un meilleur cost paramètre C.Nous obtienons que le best_C = 100. Ensuite, nous essayons plusieur kenerls  pour savoir s’il y a d’amélioration. ('vanilladot' pour le noyeau linéaire, 'polydot' pour le noyeau polinomial,'laplacedot' pour le noyeau laplacien, et 'rbfdot' pour le noyeau gaussien.)
+```{r echo=FALSE, comment="##"}
+error.svm[,c(4,1,2,3)]
+```
+  &emsp;Ici nous povons voir que le noyeau linéaire et polinomial ont le même taux d'erreur qui est mieux que les deux autres. Dans ce cas là, nous pouvons faire l'hypothèse que nos données ont des bornes linéaires pour la classification. Et la comparaison entre *KNN*, *Logistic Regression* et *QDA* donne la même conclusion.
+  
+### 1.3.7 Neural Network
+  &emsp;Pour le neural network, nous chosissons le moddèle simple avec une seule couche cachée qui contient 15 noeuds dedans. Et nous le réalisons avec **nnet()** dans le package `nnet`.
+```{r echo=FALSE, comment="##"}
+cat("Erreur au moyen de neural network =", mean(error_nnt),"    IC = [", ic.nnt, "]");
+```
+
+
+## 1.4 Conclusion
+```{r fig.height=3,fig.align='center', fig.width=7, echo=FALSE}
+ERRORs <- c( mean(error_lr), mean(error_qda), mean(error_knn), mean(error_nb), mean(error_dtree), mean(error_bag),mean(error_rf),error.svm[1,1],error.svm[1,2], error.svm[1,3], error.svm[1,4],mean(error_nnt))
+methodes <- c("Logistic Reg", "QDA", "KNN", "Naive Bayes",  "Decision tree", "bagging tree","random forest", "SVM Linear","SVM Poly","SVM Laplac",  "SVM Gauss" ,"Neural Network" )
+barplot(ERRORs,col=c("hotpink","sandybrown","sandybrown","sandybrown","hotpink","hotpink","hotpink", "steelblue","steelblue","steelblue","steelblue","sandybrown"),
+ylim=c(0,0.2),width=1,space=1,ylab="ERROR",las=1,main = "error par différentes méthodes")
+text(x=seq(2,24,by=2),y=-0.002, srt = 30, adj = 1.2, labels = methodes,xpd = TRUE)
+abline(h=0)
+```
+  &emsp;D'après tous les algorithmes que nous avons utilisés, en comparant leur erreur moyenne, nous pouvons faire l'hypothèse que nos données ont des bornes linéaires pour la classification. Et parmi tous les modèle que nous avons fait, *Decision Tree* et *Random Forest* ont la meilleure résultat. Et entre les deux, nous avons choisi *Random Forest* en raison que il peut éviter le problème de 'overfit' de *Decision Tree*. Donc nous le choisissons comme le modèle final et faire un entraînement sur tous les données pour obtenir le modèle final.
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+cat("La meilleure méthode : Random Forest")
+cat("Son taux d'erreur : ",mean(error_rf),"    IC = [", ic.rf, "]")
+```
+
