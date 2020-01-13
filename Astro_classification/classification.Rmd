@@ -2,7 +2,6 @@
 title: "SY19 A19 TP7 Rapport"
 author: "YUHUI WANG, XINGJIAN ZHOU et AGHILES HAMACHE"
 date: "12 Janvier,2020"
-
 output:
   pdf_document: 
     latex_engine: xelatex
@@ -13,12 +12,12 @@ output:
 ## 1.1 Introduction
  &emsp;Dans ce problème de classification, nous devons classifier les 3 différents types d’objets astronomiques à partir de 17 variables. Pour cette partie nous avons fait les analyses ci-dessous :  
 - PCA  
-- K plus proche voisins  
-- Analyse discriminante quadratique (QDA)
+- KNN  
+- QDA  
 - Logistic Regression  
-- Classification naive bayésienne  
-- Arbre de décision avec application du bagging et des forêts aléatoires  
-- KSVM  
+- Naive Bayes Classifer  
+- Decision Tree, Bagging et Random Forest  
+- SVM avec noyaux différents  
 - Neural Network simple avec une seule couche cachée
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
@@ -103,11 +102,11 @@ cat("Erreur au moyen de Random Forest =", mean(error_rf),"    IC = [", ic.rf, "]
 
 
 ### 1.3.6 SVM
-  &emsp;Premièrement,nous implémintons la méthode SVM avec **ksvm()** dans le package `kernlab`. Nous utilisons une autre cross-validation pour trouver un meilleur cost paramètre C.Nous obtienons que le best_C = 100. Ensuite, nous essayons plusieur kenerls  pour savoir s’il y a d’amélioration. ('vanilladot' pour le noyeau linéaire, 'polydot' pour le noyeau polinomial,'laplacedot' pour le noyeau laplacien, et 'rbfdot' pour le noyeau gaussien.)
+  &emsp;Premièrement,nous implémintons la méthode SVM avec **ksvm()** dans le package `kernlab`. Nous utilisons une autre cross-validation pour trouver un meilleur cost paramètre C.Nous obtienons que le best_C = 100. Ensuite, nous essayons plusieur kenerls  pour savoir s’il y a d’amélioration. ('vanilladot' pour le noyau linéaire, 'polydot' pour le noyau polinomial,'laplacedot' pour le noyau laplacien, et 'rbfdot' pour le noyau gaussien.)
 ```{r echo=FALSE, comment="##"}
 error.svm[,c(4,1,2,3)]
 ```
-  &emsp;Ici nous povons voir que le noyeau linéaire et polinomial ont le même taux d'erreur qui est mieux que les deux autres. Dans ce cas là, nous pouvons faire l'hypothèse que nos données ont des bornes linéaires pour la classification. Et la comparaison entre *KNN*, *Logistic Regression* et *QDA* donne la même conclusion.
+  &emsp;Ici nous povons voir que le noyau linéaire et polinomial ont le même taux d'erreur qui est mieux que les deux autres. Dans ce cas là, nous pouvons faire l'hypothèse que nos données ont des bornes linéaires pour la classification. Et la comparaison entre *KNN*, *Logistic Regression* et *QDA* donne la même conclusion.
   
 ### 1.3.7 Neural Network
   &emsp;Pour le neural network, nous chosissons le moddèle simple avec une seule couche cachée qui contient 15 noeuds dedans. Et nous le réalisons avec **nnet()** dans le package `nnet`.
