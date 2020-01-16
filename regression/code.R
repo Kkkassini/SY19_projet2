@@ -177,5 +177,12 @@ for(k in 1:Kfolds) {
 print(mean(estimate.MSE))
 
 
+reg.fit <- fit.radial.svr <- svm(y~., data=scaledData,epsilon=0.2,cost=2)
+
+predi <- predict(reg.fit, newdata= scaledData)
+
+(mean((pred - scaledData$y)^2))
+save(reg.fit,file="reg_model.Rdata")
+
 
 
