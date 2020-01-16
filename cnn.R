@@ -22,9 +22,9 @@ epochs <- 100
 channels <- 3
 
 # path to image folders
-train_image_files_path <- "C:/Users/xingjian/Desktop/sy19_projet/images/images_train"
-valid_image_files_path <- "C:/Users/xingjian/Desktop/sy19_projet/images/images_validation"
-test_image_files_path <- "C:/Users/xingjian/Desktop/sy19_projet/images/images_test"
+train_image_files_path <- "C:/Users/xingjian/Downloads/images_sy19/images_train"
+valid_image_files_path <- "C:/Users/xingjian/Downloads/images_sy19/images_validation"
+test_image_files_path <- "C:/Users/xingjian/Downloads/images_sy19/images_test"
 
 train_data_gen = image_data_generator(
   rescale = 1/255, #,
@@ -36,12 +36,6 @@ train_data_gen = image_data_generator(
   #horizontal_flip = TRUE,
   #fill_mode = "nearest"
   
-  featurewise_center = TRUE,
-  featurewise_std_normalization = TRUE,
-  rotation_range = 30,
-  width_shift_range = 0.20,
-  height_shift_range = 0.20,
-  horizontal_flip = TRUE
 )
 
 valid_data_gen <- image_data_generator(
@@ -218,4 +212,4 @@ datagen %>% fit_image_data_generator(train_image_array_gen)
 save_model_hdf5(model,filepath = "C:/Users/xingjian/Desktop/sy19_projet/model_cnn70", overwrite = TRUE,
                 include_optimizer = TRUE)
 
-model <- load_model_hdf5(filepath = "C:/Users/xingjian/Desktop/sy19_projet/model_cnn",compile = T)
+model <- load_model_hdf5(filepath = "C:/Users/xingjian/Desktop/sy19_projet/model_cnn70",compile = T)

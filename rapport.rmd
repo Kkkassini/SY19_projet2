@@ -1,16 +1,17 @@
 ---
-title: "R Notebook"
 output:
   pdf_document: default
   html_notebook: default
 ---
 
-```{r}
+```{r include=FALSE}
 library(keras)
 library(formattable)
 library(tidyverse)
 library(caret)
+load("C:/Users/xingjian/Desktop/testenv.RData")
 ```
+
 #Partie 3: Classification d'images
 
 Il s’agit d’images naturelles (au format JPEG) représentant des voitures, des chats et des fleurs. La tâche consiste à prédire le contenu de nouvelles images appartenant à l’un de ces trois types.
@@ -30,7 +31,9 @@ img_height <- 70
 target_size <- c(img_width, img_height)
 
 ```
+
 On définit le batch_size et l'epoch.
+
 ```{r}
 
 batch_size <- 32
@@ -93,12 +96,14 @@ test_image_array_gen <- flow_images_from_directory(test_image_files_path,
                                                    seed = 42,
                                                    shuffle = FALSE)
 ```
+
 On calcule le nombre d'image pour chaque classe:
 ```{r}
 table(factor(train_image_array_gen$classes))
 table(factor(valid_image_array_gen$classes))
 table(factor(test_image_array_gen$classes))
 ```
+
 On a respectivement 590, 486, 521 images dans la classe cat, car et flower, soit 36.9%, 30.4% et 32.6%. C'est plutôt une distribution balance. 
 
 On mets à l'échelle les valeurs de R/G/B pour chaque image vers 1/255, tel que les valeurs R/G/B reste dans l'intervalle [0,1].
@@ -122,10 +127,11 @@ L'étapes sont:
   1) Construire le modèle
   2) Compiler le modèle 
   3) Train/Fit les données au modèle
-  4) Evaluer le modèle dans le test set
-  5) Analyser le modèle et améliorer
+  4) Analyser le modèle et améliorer
+  5) Evaluer le modèle dans le test set
   
 Le modèle sera principalement composé par différents layers:
+
   1) Conv2D: 48 filters de taille (70x70)/(68x68)/(34x34)/(32x32)
     Ici on extrait des features depuis l'image.
   
@@ -137,7 +143,7 @@ Le modèle sera principalement composé par différents layers:
   
   5) Softmax: 3 neurones, probabilité que l'image appartient à l'une des classes.
 
-```{r}
+```{r include=FALSE}
 model<-keras_model_sequential()
 
 model %>%
@@ -172,13 +178,14 @@ On compile le modèle.
 model %>% compile(
   loss = "categorical_crossentropy",
   optimizer = optimizer_rmsprop(lr = 0.0001, decay = 1e-6),
-  metrics = "accuracy"
-)
+  metrics = "accuracy")
 summary(model)
 ```
 
-On fit le modèle aux données de train set. 
-```{r echo=FALSE}
+
+
+On fit le modèle aux données de train set.
+```{r eval=FALSE, include=FALSE}
 hist <- model %>% fit_generator(
   # training data
   train_image_array_gen,
@@ -200,12 +207,28 @@ hist <- model %>% fit_generator(
     callback_tensorboard(log_dir = "C:/Users/xingjian/Desktop/sy19_projet/logs")
   )
 )
+```
 
+On trace les courbes d'evolution de accuracy et loss pendant le processus d'apprentissage:
+```{r}
 plot(hist)
 ```
 
+#### Améliorations du modèle
+
+
+Tout d'abord, nous observons l'évolution du courbe loss du jeu de validation. Au début, la perte diminue continuellement de 0,5 à près de 0,2, mais elle commence à osciller autour de epoch=30, avec le nombre d'epoch augmente, le loss augmente, ce qui indique que le modèle est légèrement sur-apprentissage(overfit).
+
+Pour résoudre ça, on a essayé plusieurs chemin et finalement on a choisi d'utiliser la fonction callbacks de keras.
+```{r, eval=F, echo=T}
+ # save best model after every epoch
+    callback_model_checkpoint("C:/Users/xingjian/Desktop/sy19_projet/fruits_checkpoints.h5", monitor='val_loss', save_best_only = TRUE),
+```
+
+Dans ce cas elle va enregistrer le meilleur modèle evalué par la valeur val_loss. on a donc enregistré le modèle dans l'epoch qui a le minimum valeur dans le courbe "val_loss". Dans notre cas, ça enregistre le même modèle avec le méthode earlystop, pour éviter le overfit.
+
 Maintenant on fait les predictions sur le jeu de test:
-```{r}
+```{r echo=FALSE, warning=FALSE}
 predictions1 <- model %>% predict_generator(test_image_array_gen, steps=test_image_array_gen$n/batch_size+1, verbose=1)
 
 colnames(predictions1) <- c("car","cat","flower")
@@ -237,21 +260,12 @@ cm
 
 On a 97.14% accuracy sur le jeu de test. 
 
-Mais il existe encore le probabilité d'améliorer notre modèle. 
-
-
-Tout d'abord, nous observons l'évolution du courbe loss du jeu de validation. Au début, la perte diminue continuellement de 0,5 à près de 0,2, mais elle commence à osciller autour de epoch=30, avec le nombre d'epoch augmente, le loss augmente.On peut dire que le modèle est instable. Observez ensuite la précision de l'ensemble d'apprentissage et de l'ensemble de validation et constatez que l'accuracy de l'ensemble d'apprentissage est proche de 1 et que l'aracy de l'ensemble de validation est stable à environ 95%, ce qui indique que le modèle est légèrement overfit.
-
 Une solution est d'appliquer le méthode de data augmentation.
 
-L'utilisation de la data augmentation consiste principalement à ajouter de petites noises ou des modifications aux images de training. D'une part, on pourra augmenter le nombre de images dans training pour améliorer la capacité de généralisation du modèle et, d'autre part, des données de bruit peuvent être ajoutées pour améliorer la robustesse du modèle. 
+L'utilisation de la data augmentation consiste principalement à ajouter de petites noises ou des modifications aux images de training.On peut donc augmenter le nombre de images dans training pour améliorer la robustesse du modèle avec un nombre limité d'images. 
 
-Les principales méthodes d'amélioration des données sont les suivantes: flip transform, crop random, color jittering, shift, scale, contrast, noise, rotation Transformation / réflexion , etc. 
-
-Les opérations d'amélioration des données que je fais principalement sont les suivantes:
-
-Découpe d'image: Générez un cadre rectangulaire plus petit que la taille de l'image, coupez l'image au hasard et utilisez enfin l'image dans le cadre rectangulaire comme données d'apprentissage.
-
-Retourner l'image: Retournez l'image vers la gauche ou la droite.
-
-Blanchiment de l'image: blanchir l'image, c'est-à-dire normaliser l'image elle-même en une distribution gaussienne (0,1).
+Les opérations d'amélioration des données qu'on a essayé sont les suivantes:
+  -Découpe d'image: Générez un cadre rectangulaire plus petit que la taille de l'image, coupez l'image au hasard et utilisez enfin l'image dans le cadre rectangulaire comme données d'apprentissage.
+  -Retourner l'image: Retournez l'image vers la gauche ou la droite.
+  -Blanchiment de l'image: blanchir l'image, c'est-à-dire normaliser l'image elle-même en une distribution gaussienne (0,1).
+Avec tel méthode, on a baissé la valeur de val-loss après l'epoch=30. Ici on le mets comme une piste d'améliration.
