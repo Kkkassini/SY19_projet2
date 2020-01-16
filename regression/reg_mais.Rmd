@@ -1,58 +1,129 @@
 ---
-title: "SY19 étude du rendement du maïs"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-<!-- ## R Markdown
+#2. Régression : rendement du maïs
+##Introduction
+Le but de cette partie est de prédire les anomalies de rendement du maïs en France, en fonction de plusieurs variables.
+On commence par explorer le jeu de données. On se rend compte que certaines variables sont factorielles : pour l'année et le département. Les autres variables représentent des mesures de différentes caractéristiques quantitatives à un département et une année donnés.
+On vérifie également qu'aucune valeur n'est absente dans le jeu de données, et que les variables sont de la bonne classe. On transforme ainsi les variables "year_harvest", "NUMD" et "IRR", considérées par le logiciel comme des variables numériques, en variables qualitatives.
+On sera parfois amenés à supprimer, par la suite, les variables "année" et "département" avant d'entraîner nos modèles. Ce choix se justifie d'une part par le fait qu'on peut légitimement supposer que l'information apportée par l'année et le département est retranscrite à travers les variables quantitatives, dont les mesures sont effectuées dans un département et à une année précises. D'autre part, leur transformation via un codage disjonctif complet entraînerait une explosion du nombre de paramètres de nos modèles.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+##Préparation des données et modèles entraînés
+On entraîne différents modèles dans cette partie. En fonction du modèle, différents traitements doivent être appliqués à nos données en amont.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+data <- read.csv(file = "./mais_train.csv", row.names = 1)
+lapply(data,class)
+colnames(data)[2] <- "y"
+data[, 1] <- as.factor(data[, 1]) # year_harvest
+data[, 3] <- as.factor(data[, 3]) # NUMD
+data[, 4] <- as.factor(data[, 4]) # IRR
 ```
 
-## Including Plots
+* *Régression linéaire et régression de Ridge :*
+La régression linéaire et la régression de Ridge se basent uniquement sur des variables quantitatives. Ainsi, on supprime l'année, l'indice IRR et le département. On applique nos régressions linéaires sur un jeu de données centré et réduit via la fonction **scale**.
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r eval=FALSE}
+scaledData<- scale(data[,-c(1,2,3,4)])
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot. -->
+* *Decision-tree, Bagging et Random Forest*
+Ces méthodes ne nécessitent pas de traitement particulier de nos données en amont.
 
-#Introduction
+* *GLM :*
+En plus d'une régression linéaire simple, on essaie aussi d'entraîner une régression linéaire généralisée en prenant en compte les variables qualitatives, qui sont automatiquement transformées en variables muettes par lafonction *glmnet* via un codage dijonctif complet. On centre et réduit les variables quantitatives afin d'équilibrer les poids des différentes variables.
 
-```{r}
-data = read.table("./mais_train.csv",header=TRUE,sep=",",row.names = 1)
+
+* *GAM et smooth splines :*
+Les GAM combinés aux Smooth Splines sont coûteux en temps de calcul lorsqu'on veut optimiser l'hyperparamètre de chaque Smooth Spline. Aussi, on décide d'effectuer une PCA sur nos données et de ne garder qu'un certain nombre de composantes principales. Avant cela, on retire de notre jeu de données les variables "année" et "département". On ajoute ensuite les variables muettes issues du codage disjonctif de la variable "IRR".
+
+```{r eval=FALSE}
+pca <- princomp(scaledData[,-c(1,2,3,4)])
+acpdata <- cbind(data[,c(1,2,3,4)],pca$scores)
+for(i in 5:ncol(acpdata)) {
+  colnames(acpdata)[i] <- paste("Z",i-4,sep="")
+}
+acpdata <- as.data.frame.matrix(acpdata)
 ```
 
-3 composantes au probleme :
+* *SVR :*
+Les SVR sont entraînés sur un jeu de données dont on a retiré l'année et le département, dont les variables quantitatives sont normalisées et auquel on a ajouté le codage disjonctif de la variable "IRR".
 
-* var. qulitative : le rendement depend du temps
-* var. qualitative : le rendement depend du departement
-* var. continues qui dependent des 2 qualitatives.
+##Sélection de modèle
+On choisit notre meilleur modèle via une 10-fold nested cross-validation.
+On a donc une cross-validation externe avec, à chaque étape, un jeu de données d'entraînement _E_ et un jeu de données de validation _V_. À chaque étape, on effectue les opérations suivantes :
 
-Une solution pourrait etre d'etudier le probleme pour chaque annee et chaque departement. Mais la variance serait trop elevee car pas assez de donnees.
-Une autre pourrait etre de faire �a sur l'ensemble des annees et des departements, mais le biais serait trop grand.
-Compromis : regrouper les annees et departements pour obtenir des couples (annee,departement) sur lesquels faire l'etude. On peut faire ca par clustering ou par mixture / EM je crois ?
-Ensuite essayer d'estimer le modele pour chaque couple
+###Modèles sans hyperparamètre
+On entraîne ces modèles sur _E_ et on calcule leur taux d'erreur *MSE* sur _V_. C'est le cas de la régression linéaire, mais aussi des randomForest et du Bagging (randomForest en prenant tous les prédicteurs en compte). On aurait pu considérer que le nombre de prédicteurs est un hyperparamètre des randomForest à optimiser, mais on a choisi de garder la valeur usuelle de $\sqrt{p}$.
 
-Problemes
-*selection de modele : le faire sur l'ensemble des annees/departements ou selectionner un modele pour chaque cluster ?
-* ajout de variables avant de commencer la selection de modeles : chercher sur le net, connaissance du metier, tester a des combinaisons
-* faire de la selection de variables avant le clustering aussi ???
+###Modèles avec hyperparamètre
+Pour ces modèles, on effectue une 10-fold cross-validation interne en divisant _E_, à chaque fois, en un jeu d'apprentissage _A_ et un jeu de test _T_. Cette cross-validation permet d'estimer la meilleure valeur de l'hyperparamètre à fixer. On estime ensuite l'erreur du modèle sur le jeu de donénes de validation _V_.
+* Decition-Tree : il faut fixer le coût d'élagage par cross-validation puis couper l'arbre en suivant ce coût. La cross-validation est faite automatiquement via la méthode *rpart*
+```{r eval=FALSE}
+fit.tree <- rpart(y~year_harvest+NUMD, data=data, subset = (folds!=k),  method="anova", control=rpart.control(xval = Kfolds, cp=0.00))
+  i.min<-which.min(fit.tree$cptable[,4])
+  tree.cp.opt<-fit.tree$cptable[i.min,1]
+  pruned_tree <- prune(fit.tree, cp=tree.cp.opt)
+```
+* GAM et Smooth Splines : On choisit différents nombres de compoSantes principales, en optimisant à chaque fois le degré de chaque Smooth Spline associé à chaque variable. On retient ensuite le modèle avec la meilleure erreur sur _V_. Deux paramètres sont donc ici ajustés : le degré des Smooth Splines et le nombre d'axes principaux. La cross-validation interne est représentée ci-après :
+```{r eval=FALSE}
+interndata = acpdata[folds!=k,]
+  intern_n <- nrow(interndata)
+  intern.Kfolds <- 10
+  intern.folds = sample(1:intern.Kfolds, intern_n, replace = TRUE)
+  CV.gamSmoothSplines <- rep(0,54)
+  for(intern.k in 1:intern.Kfolds) {
+    print(intern.k)
+    for(i in 1:54) {
+      optimalSmoothSplines <- optim(par=rep(i,1), fn = mse.gam.smooth, folds = folds, npcomp=i, control= list(trace=0))
+      #mse.gam.smooth construit un modèle GAM avec "npcomp" composantes principales
+      optimalParam <- optimalSmoothSplines$par
+      fit.gamSmoothSplines <- gam(build.formula.smooth(i,optimalParam),data=acpdata[folds!=k,])
+      #build.dormula construit une formula avec i composantes principales et optimalParam est le vecteur des degrés optimaux
+      pred.gamSmoothSplines <- predict(fit.gamSmoothSplines,newdata=acpdata[folds==k,],type='response')
+      CV.gamSmoothSplines[intern.k] <- CV.gamSmoothSplines[intern.k] + mean((pred.gamSmoothSplines - acpdata$y[folds==k])^2)
+    }
+  }
+  optimalnpcomp <- which.min(CV.gamSmoothSplines)
+```
 
-On peut faire de la regression pour chaque sous-population obtenue. Probleme : on perdrait de l'information qui est peut etre plus gloable (un parametre qui evolue entre les departements ou les annees)
-Pour resoudre cela, on peut faire de l'apprentissage semi-supervise
+* SVR : Cette fois les apramètres à fixer sont _epsilon_ et _c_. n utilise la fonction *tune* pour optimiser ces paramètres sur le jeu de données _E_. On évalue ensuite l'erreur moyenne sur _V_.
+```{r eval=FALSE}
+optimal.radial.svr = tune(svm, y~., data=scaledDataDummyIrrWithoutYearAndDep[folds!=k,], ranges=list(epsilon=seq(0,2,0.2), cost=1:10))
+fit.radial.svr <- svm(y~., data=scaledDataDummyIrrWithoutYearAndDep[folds!=k,],
+epsilon=optimal.radial.svr$best.parameters[,1],cost=optimal.radial.svr$best.parameters[,2])
+pred.radial.svr = predict(fit.radial.svr, newdata=scaledDataDummyIrrWithoutYearAndDep[folds==k,-c(1)])
+mse.radial.svr[k] <- mean((pred.radial.svr - scaledDataDummyIrrWithoutYearAndDep$y[folds==k])^2)
+```
 
-Une solution serait la regression lineaire mixte : mixt linear regression, qu'on ferait sur toute la population. Elle permet de prendre en compte a la fois les qualititatifs et les quantitiatifs, nous donnerait un modele qui serait different pour chaque sous-pop
+##Ajustement et entraînement du modèle choisi
 
+###Choix du modèle
+
+La nested cross-validation ci-dessus nous renvoie les estimations des erreurs des différents modèles :
+
+```{r echo=FALSE, fig.width=9}
+load("envi.Rdata")
+boxplot(mse.regLin,mse.tree,mse.randomForest,mse.bagging,mse.glm,mse.lasso,mse.radial.svr,optimalSmooth[2,],names=c("regLin","decisionTree","rForest","Bagging","GLM","lassoReg","SVR","GAM+SS"))
+```
+
+Le modèle qu'on choisit est donc SVR, car il présente les plus petites espérances et variances de MSE.
+
+###Ajustement et entraînement  du modèle
+
+Il reste maintenant à optimiser les hyperparamètres du SVR. Comme précédemment, on utilise la fonction *tune* pour cela. Elle nous renvoie les meilleurs paramètres $\textit{epsilon}=0.2, \textit{cost}=2}
+Enfin, on entraîne notre modèle avec l'ensemble du jeu de données qui nous a été fournit.
+
+###Estimation de l'erreur de prédiction
+
+Pour estimer l'erreur du modèle qu'on a choisi, on réalise une 10-fold cross-validation sur notre jeu de données.
+
+
+On obtient une erreur de : $MSE = 0.5371496$.
