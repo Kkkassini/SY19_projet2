@@ -3,11 +3,12 @@ library(formattable)
 library(tidyverse)
 # list of objects to modle
 object_list <- c("car", "cat", "flower")
-
-
+library(caret)
+library(EBImage)
+library(knitr)
 # image size to scale down to (original images are 100 x 100 px)
-img_width <- 100
-img_height <- 100
+img_width <- 70
+img_height <- 70
 target_size <- c(img_width, img_height)
 
 
@@ -26,7 +27,7 @@ valid_image_files_path <- "C:/Users/xingjian/Desktop/sy19_projet/images/images_v
 test_image_files_path <- "C:/Users/xingjian/Desktop/sy19_projet/images/images_test"
 
 train_data_gen = image_data_generator(
-  rescale = 1/255 #,
+  rescale = 1/255, #,
   #rotation_range = 40,
   #width_shift_range = 0.2,
   #height_shift_range = 0.2,
@@ -34,6 +35,13 @@ train_data_gen = image_data_generator(
   #zoom_range = 0.2,
   #horizontal_flip = TRUE,
   #fill_mode = "nearest"
+  
+  featurewise_center = TRUE,
+  featurewise_std_normalization = TRUE,
+  rotation_range = 30,
+  width_shift_range = 0.20,
+  height_shift_range = 0.20,
+  horizontal_flip = TRUE
 )
 
 valid_data_gen <- image_data_generator(
@@ -98,7 +106,7 @@ model<-keras_model_sequential()
 #Configuring the Model
 model %>%
   layer_conv_2d(filter=48,kernel_size=c(3,3),padding="same",
-                input_shape=c(100,100,3)) %>%
+                input_shape=c(70,70,3)) %>%
   layer_activation("relu") %>%
   layer_conv_2d(filter=48,kernel_size=c(3,3)) %>%
   layer_activation("relu") %>%
@@ -164,6 +172,7 @@ hist <- model %>% fit_generator(
   )
 )
 
+plot(hist)
 
 #------------------predictions---------------------------
 
@@ -177,9 +186,36 @@ stat_df <- as.data.frame(cbind(test_image_array_gen$filenames, round(proba*100,2
 colnames(stat_df) <- c("filename","proba","class")
 stat_df
 
+fname<-as.factor(stat_df$filename)
+y_label = c()
+for(i in 1:length(fname)){
+  if(grepl("cat", fname[i])==TRUE){
+    y_label[i] <- "cat"
+  }else if (grepl("flower", fname[i])==TRUE){
+    y_label[i] <- "flower"
+  }else{
+    y_label[i] <- "car"
+  }
+}
 
+y_label <- as.factor(y_label)
+
+y_pred <- as.factor(stat_df$class)
+
+cm <- confusionMatrix(data = y_pred, reference = y_label)
+cm$table
+#------------------data augmentation----------------------
+datagen <- image_data_generator(
+  featurewise_center = TRUE,
+  featurewise_std_normalization = TRUE,
+  rotation_range = 20,
+  width_shift_range = 0.30,
+  height_shift_range = 0.30,
+  horizontal_flip = TRUE
+)
+datagen %>% fit_image_data_generator(train_image_array_gen)
 #------------------save/load model------------------------
-save_model_hdf5(model,filepath = "C:/Users/xingjian/Desktop/sy19_projet/model_cnn", overwrite = TRUE,
+save_model_hdf5(model,filepath = "C:/Users/xingjian/Desktop/sy19_projet/model_cnn70", overwrite = TRUE,
                 include_optimizer = TRUE)
 
 model <- load_model_hdf5(filepath = "C:/Users/xingjian/Desktop/sy19_projet/model_cnn",compile = T)
