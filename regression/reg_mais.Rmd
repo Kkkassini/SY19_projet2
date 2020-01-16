@@ -1,0 +1,58 @@
+---
+title: "SY19 étude du rendement du maïs"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<!-- ## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot. -->
+
+#Introduction
+
+```{r}
+data = read.table("./mais_train.csv",header=TRUE,sep=",",row.names = 1)
+```
+
+3 composantes au probleme :
+
+* var. qulitative : le rendement depend du temps
+* var. qualitative : le rendement depend du departement
+* var. continues qui dependent des 2 qualitatives.
+
+Une solution pourrait etre d'etudier le probleme pour chaque annee et chaque departement. Mais la variance serait trop elevee car pas assez de donnees.
+Une autre pourrait etre de faire �a sur l'ensemble des annees et des departements, mais le biais serait trop grand.
+Compromis : regrouper les annees et departements pour obtenir des couples (annee,departement) sur lesquels faire l'etude. On peut faire ca par clustering ou par mixture / EM je crois ?
+Ensuite essayer d'estimer le modele pour chaque couple
+
+Problemes
+*selection de modele : le faire sur l'ensemble des annees/departements ou selectionner un modele pour chaque cluster ?
+* ajout de variables avant de commencer la selection de modeles : chercher sur le net, connaissance du metier, tester a des combinaisons
+* faire de la selection de variables avant le clustering aussi ???
+
+On peut faire de la regression pour chaque sous-population obtenue. Probleme : on perdrait de l'information qui est peut etre plus gloable (un parametre qui evolue entre les departements ou les annees)
+Pour resoudre cela, on peut faire de l'apprentissage semi-supervise
+
+Une solution serait la regression lineaire mixte : mixt linear regression, qu'on ferait sur toute la population. Elle permet de prendre en compte a la fois les qualititatifs et les quantitiatifs, nous donnerait un modele qui serait different pour chaque sous-pop
+
