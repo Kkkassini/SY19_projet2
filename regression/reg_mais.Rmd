@@ -110,8 +110,8 @@ mse.radial.svr[k] <- mean((pred.radial.svr - scaledDataDummyIrrWithoutYearAndDep
 La nested cross-validation ci-dessus nous renvoie les estimations des erreurs des différents modèles :
 
 ```{r echo=FALSE, fig.width=9}
-load("envi.Rdata")
-boxplot(mse.regLin,mse.tree,mse.randomForest,mse.bagging,mse.glm,mse.lasso,mse.radial.svr,optimalSmooth[2,],names=c("regLin","decisionTree","rForest","Bagging","GLM","lassoReg","SVR","GAM+SS"))
+load("envi2.Rdata")
+boxplot(mse.regLin,mse.tree,mse.randomForest,mse.bagging,mse.glm,mse.lasso,mse.radial.svr,optimalSmooth,names=c("regLin","decisionTree","rForest","Bagging","GLM","lassoReg","SVR","GAM+SS"))
 ```
 
 Le modèle qu'on choisit est donc SVR, car il présente les plus petites espérances et variances de MSE.
